@@ -78,7 +78,6 @@
     .sign-in-form .field { display: grid; gap: 6px; }
     .sign-in-form label { color: #435063; font-size: 12px; font-weight: 700; }
     .sign-in-form input { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 2px; padding: 9px 10px; background: white; color: var(--ink); }
-    .sign-in-help { margin-bottom: 0; color: var(--muted); font-size: 12px; }
     [hidden] { display: none !important; }
 
     @media (max-width: 760px) {
@@ -123,7 +122,6 @@
         </div>
         <button class="button" id="sign-in" type="submit">Sign in</button>
       </form>
-      <p class="sign-in-help">Enter <strong>amanyadavadmin</strong> or the configured Firebase account email. Your password is checked by Firebase and is never saved in this page.</p>
     </section>
 
     <section id="editor" hidden aria-label="Property editor">
@@ -647,8 +645,8 @@
       } catch (error) {
         console.error("Admin login ID/password sign-in failed.", error);
         const messages = {
-          "auth/invalid-credential": "Firebase rejected this sign-in. In project akresidential, check Authentication > Users for amanyadavadmin@ak-residential.invalid and confirm its provider is Email/Password. Reset the password for that exact account.",
-          "auth/wrong-password": "The password was not accepted. In project akresidential, reset it for amanyadavadmin@ak-residential.invalid under Authentication > Users.",
+          "auth/invalid-credential": "Wrong password.",
+          "auth/wrong-password": "Wrong password.",
           "auth/user-not-found": "The configured admin account was not found. In project akresidential, add amanyadavadmin@ak-residential.invalid under Authentication > Users.",
           "auth/operation-not-allowed": "Email/password sign-in is disabled. Enable it under Firebase Authentication > Sign-in method.",
           "auth/unauthorized-domain": `This website domain (${window.location.hostname}) is not authorized. Add it under Firebase Authentication > Settings > Authorized domains.`,
