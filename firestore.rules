@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == 'amanyadavadmin@ak-residential.invalid';
+    }
+
+    function validProperty(propertyId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'id',
+          'title',
+          'area',
+          'city',
+          'type',
+          'mode',
+          'price',
+          'beds',
+          'baths',
+          'areaSqft',
+          'tag',
+          'images',
+          'imagePaths',
+          'description',
+          'specifications',
+          'features'
+        ])
+        && data.keys().hasAll([
+          'id',
+          'title',
+          'area',
+          'city',
+          'type',
+          'mode',
+          'price',
+          'beds',
+          'baths',
+          'areaSqft',
+          'tag',
+          'images',
+          'imagePaths',
+          'description',
+          'specifications',
+          'features'
+        ])
+        && data.id == propertyId
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 120
+        && data.area is string
+        && data.area.size() <= 120
+        && data.city is string
+        && data.city.size() > 0
+        && data.city.size() <= 100
+        && data.type in ['Apartment', 'Villa', 'Penthouse', 'Commercial']
+        && data.mode in ['sale', 'rent', 'commercial']
+        && data.price is number
+        && data.price >= 0
+        && data.beds is int
+        && data.beds >= 0
+        && data.baths is int
+        && data.baths >= 0
+        && data.areaSqft is number
+        && data.areaSqft >= 0
+        && data.tag is string
+        && data.tag.size() <= 80
+        && data.description is string
+        && data.description.size() <= 4000
+        && data.images is list
+        && data.images.size() <= 12
+        && data.imagePaths is list
+        && data.imagePaths.size() <= 12
+        && data.specifications is list
+        && data.specifications.size() <= 20
+        && data.features is list
+        && data.features.size() <= 30;
+    }
+
+    match /properties/{propertyId} {
+      allow read: if true;
+      allow create, update: if isOwner() && validProperty(propertyId);
+      allow delete: if isOwner();
+    }
+  }
+}

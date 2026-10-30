@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101f35">
+  <title>Property admin | The AK Residential</title>
+  <script>
+    const loginQuery = new URLSearchParams(window.location.search);
+    const pageWarnings = [];
+    if (loginQuery.has("loginId") || loginQuery.has("password")) {
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.hash);
+      pageWarnings.push("Login details were found in the page URL and removed from the address bar. Change any password that was exposed in the URL.");
+    }
+    if (window.location.protocol === "file:") {
+      pageWarnings.push("Sign-in cannot run from a file opened directly in Chrome because the browser blocks the Firebase modules. From the ak-residential folder, run `python -m http.server 8765`, then open http://localhost:8765/admin.html.");
+    }
+    if (pageWarnings.length) {
+      window.addEventListener("DOMContentLoaded", () => {
+        const status = document.getElementById("admin-status");
+        status.textContent = pageWarnings.join(" ");
+        status.style.borderLeftColor = "#9e3024";
+      });
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17263b;
+      --navy: #101f35;
+      --muted: #687485;
+      --paper: #fbfaf7;
+      --line: #e5e7e8;
+      --accent: #d97757;
+      --accent-dark: #b9573a;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    button, input, select, textarea { font: inherit; }
+    a { color: inherit; }
+    .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px max(24px, calc((100% - 1180px) / 2)); background: var(--navy); color: white; }
+    .admin-header h1 { margin: 0; font-size: 19px; }
+    .admin-header nav { display: flex; gap: 20px; align-items: center; }
+    .admin-header a { color: white; }
+    .admin-main { width: min(1180px, calc(100% - 40px)); margin: 32px auto; }
+    .admin-status { margin: 0 0 20px; padding: 13px 15px; border-left: 3px solid var(--accent); background: white; color: var(--muted); line-height: 1.5; }
+    .admin-status:empty { display: none; }
+    .admin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .admin-toolbar p { flex: 1; margin: 0; color: var(--muted); }
+    .admin-layout { display: grid; grid-template-columns: minmax(230px, .75fr) minmax(0, 1.6fr); gap: 24px; align-items: start; }
+    .panel { padding: 22px; border: 1px solid var(--line); background: white; }
+    .panel h2 { margin: 0 0 18px; font-size: 18px; }
+    .listing-list { display: grid; gap: 8px; max-height: 70vh; overflow-y: auto; }
+    .listing-choice { display: grid; gap: 3px; width: 100%; padding: 12px; border: 1px solid var(--line); background: white; color: var(--ink); text-align: left; cursor: pointer; }
+    .listing-choice:hover, .listing-choice[aria-current="true"] { border-color: var(--accent); background: #fbf5f2; }
+    .listing-choice span { color: var(--muted); font-size: 12px; }
+    .listing-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+    .field { display: grid; gap: 6px; min-width: 0; }
+    .field-full { grid-column: 1 / -1; }
+    .field label { color: #435063; font-size: 12px; font-weight: 700; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 2px; padding: 9px 10px; background: white; color: var(--ink); }
+    .field textarea { min-height: 92px; resize: vertical; }
+    .field small { color: var(--muted); font-weight: 400; }
+    .form-actions { display: flex; flex-wrap: wrap; gap: 10px; grid-column: 1 / -1; padding-top: 5px; }
+    .button { min-height: 41px; border: 1px solid var(--navy); border-radius: 2px; padding: 0 15px; background: var(--navy); color: white; font-weight: 700; cursor: pointer; }
+    .button:hover { background: #223b5c; }
+    .button.secondary { border-color: var(--line); background: white; color: var(--ink); }
+    .button.danger { border-color: #9e3024; background: #9e3024; }
+    .button:disabled { opacity: .6; cursor: wait; }
+    .current-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; }
+    .image-item { display: grid; gap: 6px; align-content: start; }
+    .image-item img { width: 100%; height: 100px; object-fit: cover; background: #eee; }
+    .image-item button { border: 1px solid var(--line); padding: 6px; background: white; color: #9e3024; cursor: pointer; }
+    .signed-out { max-width: 600px; margin: 40px auto; padding: 30px; border: 1px solid var(--line); background: white; }
+    .sign-in-form { display: grid; gap: 14px; max-width: 400px; margin-top: 20px; }
+    .sign-in-form .field { display: grid; gap: 6px; }
+    .sign-in-form label { color: #435063; font-size: 12px; font-weight: 700; }
+    .sign-in-form input { width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 2px; padding: 9px 10px; background: white; color: var(--ink); }
+    .sign-in-help { margin-bottom: 0; color: var(--muted); font-size: 12px; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 760px) {
+      .admin-header { padding: 16px 20px; }
+      .admin-main { width: min(100% - 24px, 600px); margin: 18px auto; }
+      .admin-layout { grid-template-columns: 1fr; }
+      .listing-list { max-height: 250px; }
+      .panel { padding: 16px; }
+    }
+
+    @media (max-width: 480px) {
+      .admin-header { align-items: flex-start; }
+      .admin-header nav { display: grid; justify-items: end; gap: 7px; }
+      .listing-form { grid-template-columns: 1fr; }
+      .field-full, .form-actions { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="admin-header">
+    <h1>The AK Residential · Property admin</h1>
+    <nav aria-label="Admin navigation">
+      <a href="index.html">View website</a>
+      <button class="button secondary" id="sign-out" type="button" hidden>Sign out</button>
+    </nav>
+  </header>
+
+  <main class="admin-main">
+    <p class="admin-status" id="admin-status" role="status" aria-live="polite"></p>
+
+    <section class="signed-out" id="sign-in-panel" aria-labelledby="sign-in-heading">
+      <h2 id="sign-in-heading">Owner sign in</h2>
+      <p>Sign in with the site owner account to manage property details and photos.</p>
+      <form class="sign-in-form" id="sign-in-form" onsubmit="return false;">
+        <div class="field">
+          <label for="login-id">Admin login ID or configured Firebase email</label>
+          <input id="login-id" type="text" autocomplete="username" value="amanyadavadmin" required>
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="button" id="sign-in" type="submit">Sign in</button>
+      </form>
+      <p class="sign-in-help">Enter <strong>amanyadavadmin</strong> or the configured Firebase account email. Your password is checked by Firebase and is never saved in this page.</p>
+    </section>
+
+    <section id="editor" hidden aria-label="Property editor">
+      <div class="admin-toolbar">
+        <p>Signed in as <strong id="signed-in-email"></strong></p>
+        <button class="button secondary" id="import-starters" type="button" hidden>Import starter listings</button>
+        <button class="button" id="new-listing" type="button">Add property</button>
+      </div>
+
+      <div class="admin-layout">
+        <aside class="panel" aria-labelledby="listing-heading">
+          <h2 id="listing-heading">Properties</h2>
+          <div class="listing-list" id="listing-list"></div>
+        </aside>
+
+        <section class="panel" aria-labelledby="editor-heading">
+          <h2 id="editor-heading">Edit property</h2>
+          <form class="listing-form" id="property-form">
+            <div class="field field-full">
+              <label for="property-title">Property title</label>
+              <input id="property-title" name="title" maxlength="120" required>
+            </div>
+            <div class="field">
+              <label for="property-area">Neighborhood / area</label>
+              <input id="property-area" name="area" maxlength="120" required>
+            </div>
+            <div class="field">
+              <label for="property-city">City</label>
+              <input id="property-city" name="city" maxlength="100" required>
+            </div>
+            <div class="field">
+              <label for="property-type">Property type</label>
+              <select id="property-type" name="type">
+                <option>Apartment</option>
+                <option>Villa</option>
+                <option>Penthouse</option>
+                <option>Commercial</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="property-mode">Listing purpose</label>
+              <select id="property-mode" name="mode">
+                <option value="sale">For sale</option>
+                <option value="rent">For rent</option>
+                <option value="commercial">Commercial</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="property-price">Price (₹)</label>
+              <input id="property-price" name="price" type="number" min="0" step="1" required>
+            </div>
+            <div class="field">
+              <label for="property-tag">Label / badge</label>
+              <input id="property-tag" name="tag" maxlength="80">
+            </div>
+            <div class="field">
+              <label for="property-beds">Bedrooms</label>
+              <input id="property-beds" name="beds" type="number" min="0" step="1" required>
+            </div>
+            <div class="field">
+              <label for="property-baths">Bathrooms</label>
+              <input id="property-baths" name="baths" type="number" min="0" step="1" required>
+            </div>
+            <div class="field field-full">
+              <label for="property-area-sqft">Area (square feet)</label>
+              <input id="property-area-sqft" name="areaSqft" type="number" min="0" step="1" required>
+            </div>
+            <div class="field field-full">
+              <label for="property-description">Description</label>
+              <textarea id="property-description" name="description" maxlength="4000"></textarea>
+            </div>
+            <div class="field field-full">
+              <label for="property-specifications">Property details <small>One per line: Furnishing: Semi-furnished</small></label>
+              <textarea id="property-specifications" name="specifications" placeholder="Parking: 2 covered spaces"></textarea>
+            </div>
+            <div class="field field-full">
+              <label for="property-features">Features <small>One feature per line</small></label>
+              <textarea id="property-features" name="features" placeholder="Balcony"></textarea>
+            </div>
+            <div class="field field-full">
+              <label>Current photos</label>
+              <div class="current-images" id="current-images"></div>
+            </div>
+            <div class="field field-full">
+              <label for="property-images">Upload photos <small>Images only, up to 10 MB each</small></label>
+              <input id="property-images" name="images" type="file" accept="image/*" multiple>
+              <small id="selected-files"></small>
+            </div>
+            <div class="form-actions">
+              <button class="button" id="save-property" type="submit">Save property</button>
+              <button class="button secondary" id="cancel-edit" type="button">Clear form</button>
+              <button class="button danger" id="delete-property" type="button" hidden>Delete property</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { ownerAuthEmail, ownerLoginId } from "./firebase-config.js";
+    import {
+      auth,
+      collection,
+      database,
+      deleteDoc,
+      deleteObject,
+      doc,
+      getDownloadURL,
+      onAuthStateChanged,
+      onSnapshot,
+      ref,
+      setDoc,
+      signInWithEmailAndPassword,
+      signOut,
+      storage,
+      uploadBytes,
+      writeBatch
+    } from "./firebase.js";
+    import { defaultProperties } from "./property-data.js";
+
+    const status = document.getElementById("admin-status");
+    const signInPanel = document.getElementById("sign-in-panel");
+    const signInForm = document.getElementById("sign-in-form");
+    const signInButton = document.getElementById("sign-in");
+    const signOutButton = document.getElementById("sign-out");
+    const editor = document.getElementById("editor");
+    const form = document.getElementById("property-form");
+    const listingList = document.getElementById("listing-list");
+    const currentImages = document.getElementById("current-images");
+    const imageInput = document.getElementById("property-images");
+    const saveButton = document.getElementById("save-property");
+    const importButton = document.getElementById("import-starters");
+    const deleteButton = document.getElementById("delete-property");
+
+    let currentUser;
+    let listings = [];
+    let selectedListingId = "";
+    let selectedImageUrls = [];
+    let selectedImagePaths = [];
+    let unsubscribeListings;
+
+    function showStatus(message, isError = false) {
+      status.textContent = message;
+      status.style.borderLeftColor = isError ? "#9e3024" : "";
+    }
+
+    function setEditorEnabled(enabled) {
+      editor.hidden = !enabled;
+      signInPanel.hidden = enabled;
+      signOutButton.hidden = !currentUser;
+    }
+
+    function clearForm() {
+      selectedListingId = "";
+      selectedImageUrls = [];
+      selectedImagePaths = [];
+      form.reset();
+      form.elements.city.value = "Mumbai";
+      form.elements.type.value = "Apartment";
+      form.elements.mode.value = "sale";
+      form.elements.beds.value = "1";
+      form.elements.baths.value = "1";
+      form.elements.areaSqft.value = "0";
+      form.elements.title.focus();
+      deleteButton.hidden = true;
+      document.getElementById("editor-heading").textContent = "Add property";
+      document.getElementById("selected-files").textContent = "";
+      renderCurrentImages();
+      renderListingList();
+    }
+
+    function renderCurrentImages() {
+      currentImages.replaceChildren();
+      selectedImageUrls.forEach((url, index) => {
+        const item = document.createElement("div");
+        item.className = "image-item";
+
+        const image = document.createElement("img");
+        image.src = url;
+        image.alt = `Property photo ${index + 1}`;
+        image.loading = "lazy";
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.textContent = "Remove photo";
+        removeButton.addEventListener("click", () => {
+          selectedImageUrls.splice(index, 1);
+          selectedImagePaths.splice(index, 1);
+          renderCurrentImages();
+        });
+
+        item.append(image, removeButton);
+        currentImages.append(item);
+      });
+    }
+
+    function renderListingList() {
+      listingList.replaceChildren();
+      listings.forEach(listing => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "listing-choice";
+        button.setAttribute("aria-current", String(listing.id === selectedListingId));
+
+        const title = document.createElement("strong");
+        title.textContent = listing.title;
+
+        const area = document.createElement("span");
+        area.textContent = `${listing.area}, ${listing.city}`;
+
+        button.append(title, area);
+        button.addEventListener("click", () => selectListing(listing.id));
+        listingList.append(button);
+      });
+
+      importButton.hidden = listings.length > 0;
+    }
+
+    function selectListing(id) {
+      const listing = listings.find(item => item.id === id);
+      if (!listing) {
+        showStatus("That property could not be found. Refresh the list and try again.", true);
+        return;
+      }
+
+      selectedListingId = listing.id;
+      form.elements.title.value = listing.title || "";
+      form.elements.area.value = listing.area || "";
+      form.elements.city.value = listing.city || "";
+      form.elements.type.value = listing.type || "Apartment";
+      form.elements.mode.value = listing.mode || "sale";
+      form.elements.price.value = listing.price ?? 0;
+      form.elements.tag.value = listing.tag || "";
+      form.elements.beds.value = listing.beds ?? 0;
+      form.elements.baths.value = listing.baths ?? 0;
+      form.elements.areaSqft.value = listing.areaSqft ?? 0;
+      form.elements.description.value = listing.description || "";
+      form.elements.specifications.value = (listing.specifications || [])
+        .map(item => `${item.label}: ${item.value}`)
+        .join("\n");
+      form.elements.features.value = (listing.features || []).join("\n");
+      selectedImageUrls = [...(listing.images || [])];
+      selectedImagePaths = selectedImageUrls.map((_, index) => listing.imagePaths?.[index] || "");
+      document.getElementById("editor-heading").textContent = "Edit property";
+      document.getElementById("selected-files").textContent = "";
+      imageInput.value = "";
+      deleteButton.hidden = false;
+      renderCurrentImages();
+      renderListingList();
+      showStatus("");
+    }
+
+    function createPropertyId(title) {
+      const base = title
+        .normalize("NFKD")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 48) || "property";
+      const suffix = crypto.randomUUID().slice(0, 8);
+      return `${base}-${suffix}`;
+    }
+
+    function parseLines(value) {
+      return value.split("\n").map(line => line.trim()).filter(Boolean);
+    }
+
+    function parseSpecifications(value) {
+      return parseLines(value).map(line => {
+        const separator = line.indexOf(":");
+        if (separator <= 0) {
+          throw new Error(`Use "Label: Value" format for property details: "${line}"`);
+        }
+        return {
+          label: line.slice(0, separator).trim(),
+          value: line.slice(separator + 1).trim()
+        };
+      });
+    }
+
+    async function uploadSelectedImages(propertyId) {
+      const files = [...imageInput.files];
+      for (const file of files) {
+        if (!file.type.startsWith("image/") || file.size >= 10 * 1024 * 1024) {
+          throw new Error(`${file.name}: select an image smaller than 10 MB.`);
+        }
+      }
+
+      const uploadedImages = [];
+      try {
+        for (const file of files) {
+          const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const imagePath = `property-images/${currentUser.uid}/${propertyId}/${crypto.randomUUID()}-${safeFileName}`;
+          const imageRef = ref(storage, imagePath);
+          await uploadBytes(imageRef, file, { contentType: file.type });
+          const uploadedImage = { url: "", path: imagePath };
+          uploadedImages.push(uploadedImage);
+          uploadedImage.url = await getDownloadURL(imageRef);
+        }
+      } catch (error) {
+        const cleanupResults = await Promise.allSettled(
+          uploadedImages.map(photo => deleteUploadedImage(photo.path))
+        );
+        cleanupResults
+          .filter(result => result.status === "rejected")
+          .forEach(result => console.error("Could not clean up an incomplete photo upload.", result.reason));
+        throw error;
+      }
+      return uploadedImages;
+    }
+
+    async function deleteUploadedImage(path) {
+      await deleteObject(ref(storage, path));
+    }
+
+    async function removeStoredImages(paths) {
+      const results = await Promise.allSettled(paths.map(path => deleteObject(ref(storage, path))));
+      const failures = results.filter(result => result.status === "rejected");
+      failures.forEach(result => console.error("Could not remove a property photo from Storage.", result.reason));
+      return failures.length;
+    }
+
+    async function saveProperty(event) {
+      event.preventDefault();
+      if (!currentUser || currentUser.email !== ownerAuthEmail) {
+        showStatus("Only the authorized admin account can save listings.", true);
+        return;
+      }
+
+      saveButton.disabled = true;
+      const oldListing = listings.find(item => item.id === selectedListingId);
+      const propertyId = selectedListingId || createPropertyId(form.elements.title.value);
+      let uploadedImages = [];
+
+      try {
+        const property = {
+          id: propertyId,
+          title: form.elements.title.value.trim(),
+          area: form.elements.area.value.trim(),
+          city: form.elements.city.value.trim(),
+          type: form.elements.type.value,
+          mode: form.elements.mode.value,
+          price: Number(form.elements.price.value),
+          beds: Number(form.elements.beds.value),
+          baths: Number(form.elements.baths.value),
+          areaSqft: Number(form.elements.areaSqft.value),
+          tag: form.elements.tag.value.trim(),
+          images: [...selectedImageUrls],
+          imagePaths: selectedImageUrls.map((_, index) => selectedImagePaths[index] || ""),
+          description: form.elements.description.value.trim(),
+          specifications: parseSpecifications(form.elements.specifications.value),
+          features: parseLines(form.elements.features.value)
+        };
+
+        if (!property.title || !property.area || !property.city || !Number.isFinite(property.price)) {
+          throw new Error("Enter a title, area, city, and valid price before saving.");
+        }
+        if (property.specifications.length > 20 || property.features.length > 30) {
+          throw new Error("Use at most 20 property details and 30 features.");
+        }
+        if (selectedImageUrls.length > 12 || imageInput.files.length + selectedImageUrls.length > 12) {
+          throw new Error("A property can have up to 12 photos.");
+        }
+
+        uploadedImages = await uploadSelectedImages(propertyId);
+        property.images = [...selectedImageUrls, ...uploadedImages.map(photo => photo.url)];
+        property.imagePaths = [
+          ...selectedImageUrls.map((_, index) => selectedImagePaths[index] || ""),
+          ...uploadedImages.map(photo => photo.path)
+        ];
+        if (!property.images.length) {
+          throw new Error("Add at least one photo before saving the property.");
+        }
+
+        await setDoc(doc(database, "properties", propertyId), property);
+
+        const removedPaths = (oldListing?.imagePaths || []).filter(path => path && !property.imagePaths.includes(path));
+        const cleanupFailures = removedPaths.length ? await removeStoredImages(removedPaths) : 0;
+        selectedListingId = propertyId;
+        selectedImageUrls = [...property.images];
+        selectedImagePaths = [...property.imagePaths];
+        imageInput.value = "";
+        document.getElementById("editor-heading").textContent = "Edit property";
+        document.getElementById("selected-files").textContent = "";
+        deleteButton.hidden = false;
+        renderCurrentImages();
+        renderListingList();
+        showStatus(cleanupFailures
+          ? "Property saved. Some removed photos could not be deleted from Storage; check the browser console."
+          : "Property saved. It is now available on the public website.");
+      } catch (error) {
+        console.error("Could not save this property.", error);
+        showStatus(`Could not save the property: ${error.message}`, true);
+        let cleanupFailures = 0;
+        if (uploadedImages.length) {
+          try {
+            cleanupFailures = await removeStoredImages(uploadedImages.map(photo => photo.path));
+          } catch (cleanupError) {
+            console.error("Could not clean up photos after the listing failed to save.", cleanupError);
+            cleanupFailures = uploadedImages.length;
+          }
+        }
+        if (cleanupFailures) {
+          showStatus(`${error.message} Some uploaded photos could not be cleaned up; check the browser console.`, true);
+        }
+      } finally {
+        saveButton.disabled = false;
+      }
+    }
+
+    async function deleteSelectedProperty() {
+      const listing = listings.find(item => item.id === selectedListingId);
+      if (!listing || !currentUser || currentUser.email !== ownerAuthEmail) {
+        showStatus("Select a property and sign in as the owner before deleting.", true);
+        return;
+      }
+      if (!window.confirm(`Delete "${listing.title}" from the website?`)) return;
+
+      deleteButton.disabled = true;
+      try {
+        await deleteDoc(doc(database, "properties", listing.id));
+        const storedImages = (listing.imagePaths || []).filter(Boolean);
+        const cleanupFailures = storedImages.length
+          ? await removeStoredImages(storedImages)
+          : 0;
+        clearForm();
+        showStatus(cleanupFailures
+          ? "Property deleted. Some photos could not be removed from Storage; check the browser console."
+          : "Property deleted from the public website.");
+      } catch (error) {
+        console.error("Could not delete this property.", error);
+        showStatus(`Could not delete the property: ${error.message}`, true);
+      } finally {
+        deleteButton.disabled = false;
+      }
+    }
+
+    async function importStarterListings() {
+      if (!currentUser || currentUser.email !== ownerAuthEmail || listings.length) return;
+      importButton.disabled = true;
+      try {
+        const batch = writeBatch(database);
+        defaultProperties.forEach(property => {
+          batch.set(doc(collection(database, "properties"), property.id), {
+            ...property,
+            imagePaths: property.images.map(() => "")
+          });
+        });
+        await batch.commit();
+        showStatus("Starter listings imported. You can now select any property and edit it.");
+      } catch (error) {
+        console.error("Could not import the starter listings.", error);
+        showStatus(`Could not import starter listings: ${error.message}`, true);
+      } finally {
+        importButton.disabled = false;
+      }
+    }
+
+    function showOwnerEditor(user) {
+      currentUser = user;
+      unsubscribeListings?.();
+      unsubscribeListings = undefined;
+      if (!user || user.email !== ownerAuthEmail) {
+        setEditorEnabled(false);
+        if (user) {
+          showStatus("Access denied. Sign out and use the admin login ID.", true);
+        }
+        return;
+      }
+
+      setEditorEnabled(true);
+      document.getElementById("signed-in-email").textContent = ownerLoginId;
+      showStatus("Loading saved listings…");
+
+      unsubscribeListings = onSnapshot(
+        collection(database, "properties"),
+        snapshot => {
+          listings = snapshot.docs.map(propertyDocument => ({
+            ...propertyDocument.data(),
+            id: propertyDocument.id,
+            imagePaths: propertyDocument.data().imagePaths || []
+          }));
+          renderListingList();
+          showStatus(listings.length
+            ? `${listings.length} saved listing${listings.length === 1 ? "" : "s"}. Changes are shared with the public website.`
+            : "No live listings yet. Import the starter listings to begin editing the website.");
+        },
+        error => {
+          console.error("Could not read the property catalog.", error);
+          showStatus(`Could not load listings: ${error.message}`, true);
+        }
+      );
+    }
+
+    document.getElementById("new-listing").addEventListener("click", clearForm);
+    document.getElementById("cancel-edit").addEventListener("click", clearForm);
+    form.addEventListener("submit", saveProperty);
+    deleteButton.addEventListener("click", deleteSelectedProperty);
+    importButton.addEventListener("click", importStarterListings);
+    imageInput.addEventListener("change", () => {
+      const files = [...imageInput.files];
+      document.getElementById("selected-files").textContent = files.map(file => file.name).join(", ");
+    });
+
+    signInForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const loginId = document.getElementById("login-id").value.trim();
+      const password = document.getElementById("login-password").value;
+      const allowedLoginIds = [ownerLoginId, ownerAuthEmail];
+      if (!allowedLoginIds.some(value => loginId.toLowerCase() === value.toLowerCase())) {
+        showStatus(`Enter "${ownerLoginId}" or the configured Firebase account email.`, true);
+        document.getElementById("login-id").focus();
+        return;
+      }
+
+      signInButton.disabled = true;
+      showStatus("Signing in…");
+      try {
+        await signInWithEmailAndPassword(auth, ownerAuthEmail, password);
+      } catch (error) {
+        console.error("Admin login ID/password sign-in failed.", error);
+        const messages = {
+          "auth/invalid-credential": "Firebase rejected this sign-in. In project akresidential, check Authentication > Users for amanyadavadmin@ak-residential.invalid and confirm its provider is Email/Password. Reset the password for that exact account.",
+          "auth/wrong-password": "The password was not accepted. In project akresidential, reset it for amanyadavadmin@ak-residential.invalid under Authentication > Users.",
+          "auth/user-not-found": "The configured admin account was not found. In project akresidential, add amanyadavadmin@ak-residential.invalid under Authentication > Users.",
+          "auth/operation-not-allowed": "Email/password sign-in is disabled. Enable it under Firebase Authentication > Sign-in method.",
+          "auth/unauthorized-domain": `This website domain (${window.location.hostname}) is not authorized. Add it under Firebase Authentication > Settings > Authorized domains.`,
+          "auth/network-request-failed": "Firebase could not be reached. Check the internet connection and reload the page.",
+          "auth/too-many-requests": "Firebase temporarily blocked sign-in attempts. Wait a while before trying again.",
+          "auth/user-disabled": "This admin account is disabled in Firebase Authentication."
+        };
+        const message = messages[error.code]
+          || `Sign-in failed${error.code ? ` (${error.code})` : ""}: ${error.message}`;
+        showStatus(message, true);
+        document.getElementById("login-password").focus();
+      } finally {
+        signInButton.disabled = false;
+      }
+    });
+
+    signOutButton.addEventListener("click", () => signOut(auth));
+    onAuthStateChanged(auth, showOwnerEditor);
+  </script>
+</body>
+</html>
