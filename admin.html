@@ -68,7 +68,7 @@
     .button:hover { background: #223b5c; }
     .button.secondary { border-color: var(--line); background: white; color: var(--ink); }
     .button.danger { border-color: #9e3024; background: #9e3024; }
-    .button:disabled { opacity: .6; cursor: wait; }
+    .button:disabled { opacity: .6; cursor: not-allowed; }
     .current-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; }
     .image-item { display: grid; gap: 6px; align-content: start; }
     .image-item img { width: 100%; height: 100px; object-fit: cover; background: #eee; }
@@ -269,6 +269,12 @@
       status.style.borderLeftColor = isError ? "#9e3024" : "";
     }
 
+    function reportSlowOperation() {
+      return window.setTimeout(() => {
+        showStatus("Firebase has not confirmed this change yet. Check your internet connection; keep this page open while it is pending.", true);
+      }, 20000);
+    }
+
     function setEditorEnabled(enabled) {
       editor.hidden = !enabled;
       signInPanel.hidden = enabled;
@@ -453,6 +459,8 @@
       }
 
       saveButton.disabled = true;
+      const slowOperationTimer = reportSlowOperation();
+      showStatus(imageInput.files.length ? "Uploading photos…" : "Saving property…");
       const oldListing = listings.find(item => item.id === selectedListingId);
       const propertyId = selectedListingId || createPropertyId(form.elements.title.value);
       let uploadedImages = [];
@@ -487,6 +495,7 @@
           throw new Error("A property can have up to 12 photos.");
         }
 
+        selectedListingId = propertyId;
         uploadedImages = await uploadSelectedImages(propertyId);
         property.images = [...selectedImageUrls, ...uploadedImages.map(photo => photo.url)];
         property.imagePaths = [
@@ -497,9 +506,11 @@
           throw new Error("Add at least one photo before saving the property.");
         }
 
+        showStatus("Publishing property…");
         await setDoc(doc(database, "properties", propertyId), property);
 
         const removedPaths = (oldListing?.imagePaths || []).filter(path => path && !property.imagePaths.includes(path));
+        if (removedPaths.length) showStatus("Removing old photos…");
         const cleanupFailures = removedPaths.length ? await removeStoredImages(removedPaths) : 0;
         selectedListingId = propertyId;
         selectedImageUrls = [...property.images];
@@ -529,6 +540,7 @@
           showStatus(`${error.message} Some uploaded photos could not be cleaned up; check the browser console.`, true);
         }
       } finally {
+        clearTimeout(slowOperationTimer);
         saveButton.disabled = false;
       }
     }
@@ -542,9 +554,12 @@
       if (!window.confirm(`Delete "${listing.title}" from the website?`)) return;
 
       deleteButton.disabled = true;
+      const slowOperationTimer = reportSlowOperation();
+      showStatus("Deleting property…");
       try {
         await deleteDoc(doc(database, "properties", listing.id));
         const storedImages = (listing.imagePaths || []).filter(Boolean);
+        if (storedImages.length) showStatus("Removing property photos…");
         const cleanupFailures = storedImages.length
           ? await removeStoredImages(storedImages)
           : 0;
@@ -556,6 +571,7 @@
         console.error("Could not delete this property.", error);
         showStatus(`Could not delete the property: ${error.message}`, true);
       } finally {
+        clearTimeout(slowOperationTimer);
         deleteButton.disabled = false;
       }
     }
@@ -606,9 +622,11 @@
             imagePaths: propertyDocument.data().imagePaths || []
           }));
           renderListingList();
-          showStatus(listings.length
-            ? `${listings.length} saved listing${listings.length === 1 ? "" : "s"}. Changes are shared with the public website.`
-            : "No live listings yet. Import the starter listings to begin editing the website.");
+          if (!saveButton.disabled && !deleteButton.disabled) {
+            showStatus(listings.length
+              ? `${listings.length} saved listing${listings.length === 1 ? "" : "s"}. Changes are shared with the public website.`
+              : "No live listings yet. Import the starter listings to begin editing the website.");
+          }
         },
         error => {
           console.error("Could not read the property catalog.", error);

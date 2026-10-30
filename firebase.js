@@ -10,7 +10,7 @@ import {
   collection,
   deleteDoc,
   doc,
-  getFirestore,
+  initializeFirestore,
   onSnapshot,
   setDoc,
   writeBatch
@@ -35,7 +35,9 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const database = getFirestore(firebaseApp);
+export const database = initializeFirestore(firebaseApp, {
+  experimentalAutoDetectLongPolling: true
+});
 export const storage = getStorage(firebaseApp);
 
 export {
